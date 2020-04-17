@@ -56,6 +56,7 @@ dataset = dset.ImageFolder(root=opt.data,
                                transforms.Resize(IMAGE_SIZE),
                                transforms.CenterCrop(IMAGE_SIZE),
                                transforms.ToTensor(),
+#                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                            ]))
 
 # creating output folders
@@ -99,7 +100,8 @@ data_loader = DataLoader(dataset,
                          drop_last=True,
                          pin_memory=True)
 
-shift, scale = calc_norm_values(data_loader)
+cur_min, cur_max = calc_norm_values1(data_loader, num_wt=3)
+abs_max = max(cur_max, torch.abs(cur_min))
 
 while True:
     t0 = time()
@@ -133,7 +135,8 @@ while True:
         # Build mini-batch
         filters = create_filters(DEVICE)
         images = wt(images.to(DEVICE), filters, levels=3)[:, :, :32, :32]
-        images = normalize(images, shift, scale)
+        images = normalize1(images, abs_max)
+        save_image(images, './imagenetsample.png')
         images = P.resize(images)
 
         # ============= Train the discriminator =============#

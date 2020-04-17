@@ -32,6 +32,12 @@ def normalize(data, shift, scale):
 def denormalize(data, shift, scale):
     return data*scale - shift
 
+def normalize1(data, abs_max):
+    return data / abs_max
+
+def denormalize1(data, abs_max):
+    return data * abs_max
+
 def create_filters(device, wt_fn='bior2.2'):
     w = pywt.Wavelet(wt_fn)
 
@@ -61,14 +67,14 @@ def wt(vimg, filters, levels=1):
 
     return res.reshape(bs, -1, h, w)
 
-def calc_norm_values(data_loader):
+def calc_norm_values(data_loader, num_wt):
     cur_max = float('-inf')
     cur_min = float('inf')
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     filters = create_filters(device=device)
     for i, (data, _) in enumerate(data_loader):
         data_512 = data.to(device)
-        data_wt = wt(data_512, filters=filters, levels=3)[:, :, :32, :32]
+        data_wt = wt(data_512, filters=filters, levels=num_wt)[:, :, :data_512.shape[2]//torch.pow(torch.tensor(2),num_wt), :data_512.shape[3]//torch.pow(torch.tensor(2),num_wt)]
         cur_max = max(cur_max, torch.max(data_wt))
         cur_min = min(cur_min, torch.min(data_wt))
     
@@ -76,6 +82,19 @@ def calc_norm_values(data_loader):
     scale = shift+torch.ceil(cur_max)
 
     return shift, scale
+
+def calc_norm_values1(data_loader, num_wt):
+    cur_max = float('-inf')
+    cur_min = float('inf')
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    filters = create_filters(device=device)
+    for i, (data, _) in enumerate(data_loader):
+        data_512 = data.to(device)
+        data_wt = wt(data_512, filters=filters, levels=num_wt)[:, :, :data_512.shape[2]//torch.pow(torch.tensor(2),num_wt), :data_512.shape[3]//torch.pow(torch.tensor(2),num_wt)]
+        cur_max = max(cur_max, torch.max(data_wt))
+        cur_min = min(cur_min, torch.min(data_wt))
+    
+    return cur_min, cur_max
 
 
 class Progress:

@@ -59,9 +59,6 @@ transform = transforms.Compose(
 dataset = torchvision.datasets.CIFAR10(root='../data/', train=True,
                                         download=True, transform=transform)
 
-data_loader = torch.utils.data.DataLoader(dataset, batch_size=128,
-                                          shuffle=True, num_workers=4)
-
 # creating output folders
 if not os.path.exists(opt.outd):
     os.makedirs(opt.outd)
