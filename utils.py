@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable, grad
+import pywt
 
 
 def weights_init(m):
@@ -24,6 +25,57 @@ def exp_mov_avg(Gs, G, alpha=0.999, global_step=999):
     alpha = min(1 - 1 / (global_step + 1), alpha)
     for ema_param, param in zip(Gs.parameters(), G.parameters()):
         ema_param.data.mul_(alpha).add_(1 - alpha, param.data)
+
+def normalize(data, shift, scale):
+    return (data + shift) / scale
+
+def denormalize(data, shift, scale):
+    return data*scale - shift
+
+def create_filters(device, wt_fn='bior2.2'):
+    w = pywt.Wavelet(wt_fn)
+
+    dec_hi = torch.Tensor(w.dec_hi[::-1]).to(device)
+    dec_lo = torch.Tensor(w.dec_lo[::-1]).to(device)
+
+    filters = torch.stack([dec_lo.unsqueeze(0)*dec_lo.unsqueeze(1),
+                           dec_lo.unsqueeze(0)*dec_hi.unsqueeze(1),
+                           dec_hi.unsqueeze(0)*dec_lo.unsqueeze(1),
+                           dec_hi.unsqueeze(0)*dec_hi.unsqueeze(1)], dim=0)
+
+    return filters
+
+def wt(vimg, filters, levels=1):
+    bs = vimg.shape[0]
+    h = vimg.size(2)
+    w = vimg.size(3)
+    vimg = vimg.reshape(-1, 1, h, w)
+    padded = torch.nn.functional.pad(vimg,(2,2,2,2))
+    res = torch.nn.functional.conv2d(padded, Variable(filters[:,None]),stride=2)
+    if levels>1:
+        res[:,:1] = wt(res[:,:1], filters, levels-1)
+        res[:,:1,32:,:] = res[:,:1,32:,:]*1.
+        res[:,:1,:,32:] = res[:,:1,:,32:]*1.
+        res[:,1:] = res[:,1:]*1.
+    res = res.view(-1,2,h//2,w//2).transpose(1,2).contiguous().view(-1,1,h,w)
+
+    return res.reshape(bs, -1, h, w)
+
+def calc_norm_values(data_loader):
+    cur_max = float('-inf')
+    cur_min = float('inf')
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    filters = create_filters(device=device)
+    for i, (data, _) in enumerate(data_loader):
+        data_512 = data.to(device)
+        data_wt = wt(data_512, filters=filters, levels=3)[:, :, :32, :32]
+        cur_max = max(cur_max, torch.max(data_wt))
+        cur_min = min(cur_min, torch.min(data_wt))
+    
+    shift = torch.ceil(-1*cur_min)
+    scale = shift+torch.ceil(cur_max)
+
+    return shift, scale
 
 
 class Progress:

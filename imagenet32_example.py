@@ -14,6 +14,7 @@ from torchvision import transforms
 from torchvision.utils import save_image
 import torchvision.datasets as dset
 
+
 from model import *
 from progressBar import printProgressBar
 from utils import *
@@ -98,6 +99,8 @@ data_loader = DataLoader(dataset,
                          drop_last=True,
                          pin_memory=True)
 
+shift, scale = calc_norm_values(data_loader)
+
 while True:
     t0 = time()
 
@@ -128,7 +131,9 @@ while True:
         global_step += 1
 
         # Build mini-batch
-        images = images.to(DEVICE)
+        filters = create_filters(DEVICE)
+        images = wt(images.to(DEVICE), filters, levels=3)[:, :, :32, :32]
+        images = normalize(images, shift, scale)
         images = P.resize(images)
 
         # ============= Train the discriminator =============#
