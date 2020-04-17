@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torch.backends import cudnn
 from torchvision import transforms
 from torchvision.utils import save_image
-from torchvision.datasets import MNIST
+import torchvision.datasets as dset
 
 from model import *
 from progressBar import printProgressBar
@@ -48,15 +48,14 @@ print(opt)
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 MAX_RES = 3 # for 32x32 output
+IMAGE_SIZE = 256
 
-transform = transforms.Compose([
-    # resize to 32x32
-    transforms.Pad((2, 2)),
-    transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,))
-])
-
-dataset = MNIST(opt.data, download=True, train=True, transform=transform)
+dataset = dset.ImageFolder(root=opt.data,
+                           transform=transforms.Compose([
+                               transforms.Resize(IMAGE_SIZE),
+                               transforms.CenterCrop(IMAGE_SIZE),
+                               transforms.ToTensor(),
+                           ]))
 
 # creating output folders
 if not os.path.exists(opt.outd):
@@ -66,8 +65,8 @@ for f in [opt.outf, opt.outl, opt.outm]:
         os.makedirs(os.path.join(opt.outd, f))
 
 # Model creation and init
-G = Generator(max_res=MAX_RES, nch=opt.nch, nc=1, bn=opt.BN, ws=opt.WS, pn=opt.PN).to(DEVICE)
-D = Discriminator(max_res=MAX_RES, nch=opt.nch, nc=1, bn=opt.BN, ws=opt.WS).to(DEVICE)
+G = Generator(max_res=MAX_RES, nch=opt.nch, nc=3, bn=opt.BN, ws=opt.WS, pn=opt.PN).to(DEVICE)
+D = Discriminator(max_res=MAX_RES, nch=opt.nch, nc=3, bn=opt.BN, ws=opt.WS).to(DEVICE)
 if not opt.WS:
     # weights are initialized by WScale layers to normal if WS is used
     G.apply(weights_init)
