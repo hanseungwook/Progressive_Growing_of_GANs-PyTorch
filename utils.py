@@ -27,10 +27,13 @@ def exp_mov_avg(Gs, G, alpha=0.999, global_step=999):
         ema_param.data.mul_(alpha).add_(1 - alpha, param.data)
 
 def normalize(data, shift, scale):
-    return (data + shift) / scale
+    data = (data + shift) / scale
+    return (data - 0.5) / 0.5
 
 def denormalize(data, shift, scale):
-    return data*scale - shift
+    data = (data * 0.5) + 0.5
+    
+    return (data * scale) - shift
 
 def normalize1(data, abs_max):
     return data / abs_max
